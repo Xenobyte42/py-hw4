@@ -3,7 +3,7 @@ import uuid
 import pickle
 import os.path
 import argparse
-from threading import Timer
+import time
 
 
 class ServerError(Exception):
@@ -22,20 +22,27 @@ class Task:
         self.data = data
         self.timeout = timeout
         self.is_waiting = False
+        self.start_wait_time = None
 
-    def stop_wait(self):
-        self.is_waiting = False
+    def update(self):
+        if self.start_wait_time is not None:
+            if (int(time.time() - self.start_wait_time) >= self.timeout):
+                self.is_waiting = False
+                self.start_wait_time = None
 
     def start_wait(self):
+        self.start_wait_time = time.time()
         self.is_waiting = True
-        timer = Timer(self.timeout, Task.stop_wait, args=(self, ))
-        timer.start()
 
 
 class TaskQueue:
 
     def __init__(self):
         self._tasks = []
+
+    def update(self):
+        for task in self._tasks:
+            task.update()
 
     def add_task(self, task):
         self._tasks.append(task)
@@ -69,6 +76,10 @@ class QueueDict:
     def __init__(self):
         self._queue_dict = {}
 
+    def update_tasks_state(self):
+        for queue in self._queue_dict:
+            self._queue_dict[queue].update()
+
     def add_task(self, queue_name, task):
         if queue_name not in self._queue_dict:
             self._queue_dict[queue_name] = TaskQueue()
@@ -76,6 +87,7 @@ class QueueDict:
         return task.task_id.encode()
 
     def get_task(self, queue_name):
+        self.update_tasks_state()
         if queue_name not in self._queue_dict:
             return b'NONE'
         task = self._queue_dict[queue_name].get_task()
@@ -95,6 +107,7 @@ class QueueDict:
             return b'NO'
 
     def ack_task(self, queue_name, task_id):
+        self.update_tasks_state()
         if queue_name not in self._queue_dict:
             return b'ERROR'
         if self._queue_dict[queue_name].ack_task(task_id):
