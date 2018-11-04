@@ -40,15 +40,12 @@ class TaskQueue:
     def __init__(self):
         self._tasks = []
 
-    def update(self):
-        for task in self._tasks:
-            task.update()
-
     def add_task(self, task):
         self._tasks.append(task)
 
     def get_task(self):
         for task in self._tasks:
+            task.update()
             if not task.is_waiting:
                 task.start_wait()
                 return task
@@ -63,6 +60,7 @@ class TaskQueue:
     def ack_task(self, task_id):
         for idx, task in enumerate(self._tasks):
             if task.task_id == task_id:
+                task.update()
                 if task.is_waiting:
                     del self._tasks[idx]
                     return True
@@ -76,10 +74,6 @@ class QueueDict:
     def __init__(self):
         self._queue_dict = {}
 
-    def update_tasks_state(self):
-        for queue in self._queue_dict:
-            self._queue_dict[queue].update()
-
     def add_task(self, queue_name, task):
         if queue_name not in self._queue_dict:
             self._queue_dict[queue_name] = TaskQueue()
@@ -87,7 +81,6 @@ class QueueDict:
         return task.task_id.encode()
 
     def get_task(self, queue_name):
-        self.update_tasks_state()
         if queue_name not in self._queue_dict:
             return b'NONE'
         task = self._queue_dict[queue_name].get_task()
@@ -107,7 +100,6 @@ class QueueDict:
             return b'NO'
 
     def ack_task(self, queue_name, task_id):
-        self.update_tasks_state()
         if queue_name not in self._queue_dict:
             return b'ERROR'
         if self._queue_dict[queue_name].ack_task(task_id):
